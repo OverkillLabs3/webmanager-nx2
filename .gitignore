@@ -1,0 +1,6 @@
+build/
+dist/
+*.nso
+*.elf
+*.map
+source/ui_html.h

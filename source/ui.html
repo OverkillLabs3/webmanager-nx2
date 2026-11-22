@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Switch 2 Files</title>
+<style>
+:root{--bg:#0b0f1e;--panel:#161d36;--panel2:#1e2748;--line:#2b3560;--text:#ecf0fc;--dim:#8a95bd;--teal:#58e2cc;--violet:#a07cff;--red:#ff7b8a;--amber:#ffce6e}
+*{box-sizing:border-box}
+html,body{margin:0;background:linear-gradient(180deg,#090d1e,#180e32) fixed;color:var(--text);font:15px/1.4 system-ui,Segoe UI,Roboto,sans-serif;min-height:100vh}
+button,input{font:inherit;color:inherit}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding:18px 24px 8px}
+h1{margin:0;font-size:24px;font-weight:700}
+.space{flex:1;min-width:220px;max-width:420px;margin-left:auto}
+.space small{display:block;color:var(--dim);text-align:right;margin-bottom:4px}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--teal),var(--violet))}
+.crumbs{display:flex;flex-wrap:wrap;gap:2px;padding:0 24px 8px;color:var(--dim)}
+.crumbs a{color:var(--teal);cursor:pointer;padding:2px 6px;border-radius:6px}
+.crumbs a:hover{background:var(--panel2)}
+.tools{display:flex;flex-wrap:wrap;gap:8px;padding:6px 24px 12px;align-items:center}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 13px;cursor:pointer}
+.btn:hover:not(:disabled){border-color:var(--violet)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.danger:hover:not(:disabled){border-color:var(--red);color:var(--red)}
+.tools input[type=search]{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 12px;min-width:160px;flex:1;max-width:260px}
+main{padding:0 24px 120px}
+table{width:100%;border-collapse:separate;border-spacing:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+th,td{padding:9px 12px;text-align:left;white-space:nowrap}
+th{background:var(--panel2);color:var(--dim);font-weight:600;cursor:pointer;user-select:none;position:sticky;top:0}
+td.n{white-space:normal;word-break:break-all;width:100%}
+td.s,th.s{text-align:right}
+tr.row:hover{background:#1a2340}
+tr.row.sel{background:#243060}
+tr.row td{border-top:1px solid #1d2646}
+.name{cursor:pointer}.name.dir{color:var(--teal)}
+.name::before{content:"\1F4C4  "}.name.dir::before{content:"\1F4C1  "}
+.empty{padding:36px;text-align:center;color:var(--dim)}
+#drop{position:fixed;inset:0;background:rgba(10,14,34,.86);border:3px dashed var(--violet);display:none;align-items:center;justify-content:center;font-size:26px;z-index:30}
+#drop.on{display:flex}
+#tasks{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding:10px 24px;display:none;z-index:20}
+#tasks .row{display:flex;justify-content:space-between;gap:12px;color:var(--dim);margin-bottom:6px;font-size:13px}
+#toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 16px;display:none;z-index:40;max-width:90vw}
+#toast.err{border-color:var(--red);color:var(--red)}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:0;width:min(900px,94vw)}
+dialog::backdrop{background:rgba(5,8,20,.7)}
+dialog h2{margin:0;padding:14px 18px;font-size:17px;border-bottom:1px solid var(--line);word-break:break-all}
+dialog textarea{display:block;width:100%;height:60vh;background:var(--bg);color:var(--text);border:0;padding:14px 18px;font:13px/1.5 ui-monospace,Consolas,monospace;resize:none;outline:none}
+dialog .act{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line)}
+@media(max-width:640px){th.t,td.t{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Switch 2 Files</h1>
+  <div class="space"><small id="spaceText">&nbsp;</small><div class="bar"><i id="spaceBar"></i></div></div>
+</header>
+<div class="crumbs" id="crumbs"></div>
+<div class="tools">
+  <button class="btn" id="bUp">&#8593; Up</button>
+  <button class="btn" id="bRefresh">Refresh</button>
+  <button class="btn" id="bMkdir">New folder</button>
+  <button class="btn" id="bNew">New file</button>
+  <button class="btn" id="bUpload">Upload files</button>
+  <button class="btn" id="bUploadDir">Upload folder</button>
+  <button class="btn" id="bDownload" disabled>Download</button>
+  <button class="btn" id="bEdit" disabled>Edit</button>
+  <button class="btn" id="bRename" disabled>Rename</button>
+  <button class="btn danger" id="bDelete" disabled>Delete</button>
+  <input type="search" id="filter" placeholder="Filter">
+</div>
+<main>
+  <table id="table">
+    <thead><tr><th style="width:34px"><input type="checkbox" id="all"></th><th data-k="n">Name</th><th class="t" data-k="t">Type</th><th class="s" data-k="s">Size</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="empty" id="empty" hidden>This folder is empty.</div>
+</main>
+<div id="drop">Drop files or folders to upload</div>
+<div id="tasks"><div class="row"><span id="taskName"></span><span id="taskInfo"></span></div><div class="bar"><i id="taskBar"></i></div></div>
+<div id="toast"></div>
+<input type="file" id="pickFiles" multiple hidden>
+<input type="file" id="pickDir" webkitdirectory hidden>
+<dialog id="editor"><h2 id="edTitle"></h2><textarea id="edText" spellcheck="false"></textarea>
+  <div class="act"><button class="btn" id="edCancel">Close</button><button class="btn" id="edSave">Save</button></div></dialog>
+<script>
+"use strict";
+var $=function(i){return document.getElementById(i)};
+var cwd="/",entries=[],sel={},sortKey="n",sortDir=1,busy=false;
+function enc(p){return encodeURIComponent(p)}
+function join(a,b){return a==="/"?"/"+b:a+"/"+b}
+function ext(n){var i=n.lastIndexOf(".");return i>0?n.slice(i+1).toLowerCase():""}
+function fmt(n){if(n<1024)return n+" B";var u=["KB","MB","GB","TB"],i=-1;do{n/=1024;i++}while(n>=1024&&i<3);return n.toFixed(n<10?2:1)+" "+u[i]}
+function toast(m,err){var t=$("toast");t.textContent=m;t.className=err?"err":"";t.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(function(){t.style.display="none"},err?6000:2500)}
+function call(method,path,params,body,extra){
+  var q=Object.keys(params||{}).map(function(k){return k+"="+enc(params[k])}).join("&");
+  var o={method:method,headers:{"X-Webfm":"1"}};if(body!==undefined)o.body=body;
+  return fetch(path+(q?"?"+q:""),o).then(function(r){
+    if(r.ok)return extra==="text"?r.text():r.json();
+    return r.json().catch(function(){return{}}).then(function(j){throw new Error(j.error||("HTTP "+r.status))});
+  });
+}
+function selected(){return entries.filter(function(e){return sel[e.n]})}
+function updateButtons(){
+  var s=selected(),one=s.length===1;
+  $("bDownload").disabled=!(s.length&&s.every(function(e){return!e.d}));
+  $("bEdit").disabled=!(one&&!s[0].d&&s[0].s<=1048576);
+  $("bRename").disabled=!one;$("bDelete").disabled=!s.length;
+  $("bUp").disabled=cwd==="/";
+  $("all").checked=entries.length>0&&s.length===entries.length;
+}
+function crumbs(){
+  var c=$("crumbs");c.textContent="";var acc="/";
+  function add(label,p){var a=document.createElement("a");a.textContent=label;a.onclick=function(){load(p)};c.appendChild(a)}
+  add("SD card","/");
+  cwd.split("/").filter(Boolean).forEach(function(part){acc=join(acc,part);var sep=document.createElement("span");sep.textContent="/";c.appendChild(sep);add(part,acc)});
+}
+function render(){
+  var f=$("filter").value.toLowerCase(),rows=$("rows");rows.textContent="";
+  var list=entries.filter(function(e){return!f||e.n.toLowerCase().indexOf(f)>=0});
+  list.sort(function(a,b){
+    if(a.d!==b.d)return a.d?-1:1;
+    var r=sortKey==="s"?a.s-b.s:sortKey==="t"?ext(a.n).localeCompare(ext(b.n)):a.n.localeCompare(b.n,undefined,{numeric:true,sensitivity:"base"});
+    return(r||a.n.localeCompare(b.n))*sortDir;
+  });
+  list.forEach(function(e){
+    var tr=document.createElement("tr");tr.className="row"+(sel[e.n]?" sel":"");
+    var c0=document.createElement("td"),cb=document.createElement("input");cb.type="checkbox";cb.checked=!!sel[e.n];
+    cb.onchange=function(){if(cb.checked)sel[e.n]=1;else delete sel[e.n];render();updateButtons()};c0.appendChild(cb);
+    var c1=document.createElement("td");c1.className="n";var a=document.createElement("span");a.className="name"+(e.d?" dir":"");a.textContent=e.n;
+    a.onclick=function(){if(e.d)load(join(cwd,e.n));else openFile(e)};c1.appendChild(a);
+    var c2=document.createElement("td");c2.className="t";c2.textContent=e.d?"Folder":(ext(e.n)||"File");
+    var c3=document.createElement("td");c3.className="s";c3.textContent=e.d?"":fmt(e.s);
+    tr.appendChild(c0);tr.appendChild(c1);tr.appendChild(c2);tr.appendChild(c3);rows.appendChild(tr);
+  });
+  $("empty").hidden=list.length>0;$("table").hidden=false;
+  updateButtons();
+}
+function load(p){
+  return call("GET","/api/list",{path:p}).then(function(j){
+    cwd=j.path;entries=j.entries;sel={};crumbs();render();
+    if(j.skipped)toast(j.skipped+" entr"+(j.skipped>1?"ies":"y")+" could not be read by the console (error "+j.err+"), probably unusual characters in the name",true);
+    try{history.replaceState(null,"","#"+enc(cwd))}catch(e){}
+  }).catch(function(e){toast("Cannot open "+p+": "+e.message,true)});
+}
+function space(){
+  call("GET","/api/space").then(function(j){
+    var used=j.total-j.free;$("spaceText").textContent=fmt(j.free)+" free of "+fmt(j.total);
+    $("spaceBar").style.width=(j.total?used/j.total*100:0)+"%";
+  }).catch(function(){});
+}
+function refresh(){return Promise.all([load(cwd),space()])}
+function openFile(e){
+  if(!e.d&&e.s<=1048576&&/^(txt|log|ini|cfg|conf|json|md|xml|csv|lua|py|c|h|cpp|js|html|css|yml|yaml|toml|sh|bat)$/.test(ext(e.n)))edit(e);
+  else window.location="/api/get?path="+enc(join(cwd,e.n));
+}
+function download(){selected().forEach(function(e,i){setTimeout(function(){var a=document.createElement("a");a.href="/api/get?path="+enc(join(cwd,e.n));a.download=e.n;document.body.appendChild(a);a.click();a.remove()},i*400)})}
+function edit(e){
+  e=e||selected()[0];var p=join(cwd,e.n);
+  call("GET","/api/get",{path:p,inline:"1"},undefined,"text").then(function(t){
+    $("edTitle").textContent=p;$("edText").value=t;$("editor").showModal();$("edSave").onclick=function(){
+      call("PUT","/api/put",{path:p},new Blob([$("edText").value])).then(function(){toast("Saved");$("editor").close();refresh()}).catch(function(x){toast("Save failed: "+x.message,true)});
+    };
+  }).catch(function(x){toast("Cannot open: "+x.message,true)});
+}
+function ask(label,def){var v=prompt(label,def||"");if(v===null)return null;v=v.trim();if(!v||/[\/\\:*?"<>|]/.test(v)){toast("That name is not allowed",true);return null}return v}
+function mkdir(){var n=ask("New folder name");if(!n)return;call("POST","/api/mkdir",{path:join(cwd,n)}).then(refresh).catch(function(e){toast(e.message,true)})}
+function newFile(){var n=ask("New file name");if(!n)return;call("PUT","/api/put",{path:join(cwd,n)},new Blob([])).then(refresh).catch(function(e){toast(e.message,true)})}
+function rename(){var e=selected()[0],n=ask("New name",e.n);if(!n||n===e.n)return;call("POST","/api/rename",{from:join(cwd,e.n),to:join(cwd,n)}).then(refresh).catch(function(x){toast(x.message,true)})}
+function del(){
+  var s=selected();if(!s.length)return;
+  if(!confirm("Delete "+(s.length===1?'"'+s[0].n+'"':s.length+" items")+(s.some(function(e){return e.d})?" and everything inside":"")+"? This cannot be undone."))return;
+  s.reduce(function(p,e){return p.then(function(){return call("POST","/api/delete",{path:join(cwd,e.n)})})},Promise.resolve()).then(refresh).catch(function(e){toast(e.message,true);refresh()});
+}
+// ---- upload ----
+function showTask(name,info,pct){$("tasks").style.display="block";$("taskName").textContent=name;$("taskInfo").textContent=info;$("taskBar").style.width=pct+"%"}
+function putFile(item,done){
+  return new Promise(function(res,rej){
+    var x=new XMLHttpRequest();x.open("PUT","/api/put?path="+enc(item.path));x.setRequestHeader("X-Webfm","1");
+    x.upload.onprogress=function(e){done(e.loaded)};
+    x.onload=function(){if(x.status<300)res();else{var m="HTTP "+x.status;try{m=JSON.parse(x.responseText).error||m}catch(e){}rej(new Error(m))}};
+    x.onerror=function(){rej(new Error("connection lost"))};x.send(item.file);
+  });
+}
+function upload(items){
+  if(busy||!items.length)return;busy=true;
+  var total=items.reduce(function(a,i){return a+i.file.size},0),sent=0,t0=Date.now(),made={},fails=0;
+  function mk(dir){
+    if(dir==="/"||made[dir])return Promise.resolve();made[dir]=1;
+    return mk(dir.slice(0,dir.lastIndexOf("/"))||"/").then(function(){return call("POST","/api/mkdir",{path:dir}).catch(function(){})});
+  }
+  function info(idx,cur){
+    var el=(Date.now()-t0)/1000,spd=el>0?(sent+cur)/el:0;
+    showTask("Uploading "+(idx+1)+" of "+items.length+": "+items[Math.min(idx,items.length-1)].rel,fmt(sent+cur)+" of "+fmt(total)+"  "+fmt(spd)+"/s",total?(sent+cur)/total*100:100);
+  }
+  items.reduce(function(p,it,idx){return p.then(function(){
+    it.path=join(cwd,it.rel);info(idx,0);
+    return mk(it.path.slice(0,it.path.lastIndexOf("/"))||"/").then(function(){return putFile(it,function(l){info(idx,l)})})
+      .then(function(){sent+=it.file.size}).catch(function(e){fails++;toast("Failed: "+it.rel+" ("+e.message+")",true)});
+  })},Promise.resolve()).then(function(){
+    busy=false;$("tasks").style.display="none";if(!fails)toast("Uploaded "+items.length+" file"+(items.length>1?"s":""));refresh();
+  });
+}
+function fromList(files){return Array.prototype.map.call(files,function(f){return{file:f,rel:f.webkitRelativePath||f.name}})}
+function walk(entry,prefix,out){
+  return new Promise(function(res){
+    if(entry.isFile)entry.file(function(f){out.push({file:f,rel:prefix+entry.name});res()},function(){res()});
+    else{var r=entry.createReader(),all=[];(function more(){r.readEntries(function(b){
+      if(!b.length)Promise.all(all.map(function(c){return walk(c,prefix+entry.name+"/",out)})).then(res);else{all=all.concat(Array.prototype.slice.call(b));more()}
+    },function(){res()})})()}
+  });
+}
+var depth=0;
+window.addEventListener("dragenter",function(e){e.preventDefault();depth++;$("drop").className="on"});
+window.addEventListener("dragover",function(e){e.preventDefault()});
+window.addEventListener("dragleave",function(e){e.preventDefault();if(--depth<=0){depth=0;$("drop").className=""}});
+window.addEventListener("drop",function(e){
+  e.preventDefault();depth=0;$("drop").className="";var out=[],dt=e.dataTransfer;
+  if(dt.items&&dt.items.length&&dt.items[0].webkitGetAsEntry){
+    var ents=Array.prototype.map.call(dt.items,function(i){return i.webkitGetAsEntry()}).filter(Boolean);
+    Promise.all(ents.map(function(en){return walk(en,"",out)})).then(function(){upload(out)});
+  }else upload(fromList(dt.files));
+});
+// ---- wiring ----
+$("bUp").onclick=function(){load(cwd.slice(0,cwd.lastIndexOf("/"))||"/")};
+$("bRefresh").onclick=refresh;$("bMkdir").onclick=mkdir;$("bNew").onclick=newFile;
+$("bUpload").onclick=function(){$("pickFiles").click()};$("bUploadDir").onclick=function(){$("pickDir").click()};
+$("pickFiles").onchange=function(e){upload(fromList(e.target.files));e.target.value=""};
+$("pickDir").onchange=function(e){upload(fromList(e.target.files));e.target.value=""};
+$("bDownload").onclick=download;$("bEdit").onclick=function(){edit()};$("bRename").onclick=rename;$("bDelete").onclick=del;
+$("edCancel").onclick=function(){$("editor").close()};
+$("filter").oninput=render;
+$("all").onchange=function(){sel={};if($("all").checked)entries.forEach(function(e){sel[e.n]=1});render()};
+Array.prototype.forEach.call(document.querySelectorAll("th[data-k]"),function(th){th.onclick=function(){var k=th.getAttribute("data-k");if(sortKey===k)sortDir=-sortDir;else{sortKey=k;sortDir=1}render()}});
+var start="/";try{var h=decodeURIComponent(location.hash.slice(1));if(h.charAt(0)==="/")start=h}catch(e){}
+load(start).then(function(){if(!entries.length&&start!=="/"&&!$("crumbs").firstChild)load("/")});space();
+</script>
+</body>
+</html>
